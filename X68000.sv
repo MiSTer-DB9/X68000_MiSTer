@@ -171,8 +171,10 @@ module emu
 	// 1 - D-/TX
 	// 2..6 - USR2..USR6
 	// Set USER_OUT to 1 to read from USER_IN.
-	input   [6:0] USER_IN,
-	output  [6:0] USER_OUT,
+	output        USER_OSD,
+	output  [1:0] USER_MODE,
+	input   [7:0] USER_IN,
+	output  [7:0] USER_OUT,
 
 	input         OSD_STATUS
 );
@@ -180,6 +182,16 @@ module emu
 ///////// Default values for ports not used in this core /////////
 
 assign ADC_BUS  = 'Z;
+
+wire         CLK_JOY = CLK_50M;         //Assign clock between 40-50Mhz
+wire   [2:0] JOY_FLAG  = {status[62],status[63],status[61]}; //Assign 3 bits of status (31:29) o (63:61)
+wire         JOY_CLK, JOY_LOAD, JOY_SPLIT, JOY_MDSEL;
+wire   [5:0] JOY_MDIN  = JOY_FLAG[2] ? {USER_IN[6],USER_IN[3],USER_IN[5],USER_IN[7],USER_IN[1],USER_IN[2]} : '1;
+wire         JOY_DATA  = JOY_FLAG[1] ? USER_IN[5] : '1;
+assign       USER_OUT  = JOY_FLAG[2] ? {3'b111,JOY_SPLIT,3'b111,JOY_MDSEL} : JOY_FLAG[1] ? {6'b111111,JOY_CLK,JOY_LOAD} : '1;
+assign       USER_MODE = JOY_FLAG[2:1] ;
+assign       USER_OSD  = joydb_1[10] & joydb_1[6];
+
 assign {UART_RTS, UART_DTR} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = '0;  
@@ -252,6 +264,9 @@ parameter CONF_STR = {
 	"o57,Controller,2 Button,2 Turbo,MegaDrive 3,Magical 6,Capcom 6,Double-DPad,CyberStick;",
 //	"o24,KBD layout,JP Func.,JP Pos.,US Std,US Alt,Zuiki X68KZ;",													// To be added soon
 	"o23,KBD layout,JP Func.,JP Pos.,US Std,US Alt;",
+	"-;",
+	"oUV,UserIO Joystick,Off,DB9MD,DB15 ;",
+	"oT,UserIO Players, 1 Player,2 Players;",
 	"-;",
 	"o0,CPU speed,Normal,Turbo;",
 	"R7,NMI Button;",
@@ -366,9 +381,10 @@ wire [31:0] uart1_speed;
 wire [15:0] joystick_0, joystick_1;
 wire [15:0] joy_analog_a, joy_analog_b;
 
+// [MiSTer-DB9 BEGIN] - DB9/SNAC8 support: USB joystick wires for mux
 wire        strA_tristate;
 wire        strA;
-wire  [5:0] joyA = (status[39:37] == 3'b000) ?		// default 2-button
+wire  [5:0] joyA_USB = (status[39:37] == 3'b000) ?		// default 2-button
 						~{joystick_0[5:4], (joystick_0[0]|joystick_0[6]), (joystick_0[1]|joystick_0[6]), (joystick_0[2]|joystick_0[7]), (joystick_0[3]|joystick_0[7])} :
 
 						// Turbo 2-button
@@ -411,7 +427,7 @@ wire  [5:0] joyA = (status[39:37] == 3'b000) ?		// default 2-button
 
 wire        strB;
 wire        strB_tristate;
-wire  [5:0] joyB = ((status[39:37] == 3'b000) || (status[38:36] == 3'b110)) ?		// default 2-button or CyberStick (only support 1 CyberStick)
+wire  [5:0] joyB_USB = ((status[39:37] == 3'b000) || (status[38:36] == 3'b110)) ?		// default 2-button or CyberStick (only support 1 CyberStick)
 						~{joystick_1[5:4], (joystick_1[0]|joystick_1[6]), (joystick_1[1]|joystick_1[6]), (joystick_1[2]|joystick_1[7]), (joystick_1[3]|joystick_1[7])} :
 
 						// Turbo 2-button
@@ -431,7 +447,7 @@ wire  [5:0] joyB = ((status[39:37] == 3'b000) || (status[38:36] == 3'b110)) ?		/
 						// strobe = high
 						 ((status[39:37] == 3'b011) && (strA == 1'b1)) ?
 						~{joystick_1[5],  joystick_1[4], joystick_1[10],  joystick_1[11], 1'b1, 1'b1} :
-						
+
 						// Capcom 6-button - strobe = low
 						((status[39:37] == 3'b100) && (strB == 1'b0)) ?
 						~{joystick_1[5],  joystick_1[4], joystick_1[0], joystick_1[1], joystick_1[2], joystick_1[3]} :
@@ -447,9 +463,10 @@ wire  [5:0] joyB = ((status[39:37] == 3'b000) || (status[38:36] == 3'b110)) ?		/
 						~{joystick_1[6], joystick_1[7], joystick_1[4], joystick_1[9], joystick_1[5], joystick_1[8]} :
 
 						6'b111111;
+// [MiSTer-DB9 END]
 
 
-////////////////////////////  Joystick values  ////////////////////////////////// 
+////////////////////////////  Joystick values  //////////////////////////////////
 
 reg [3:0] scan_counter = 0;
 reg [1:0] joyrept_0;
@@ -467,7 +484,7 @@ always @(posedge clk_sys) begin
 		// repeat counters
 		joyrept_0[0] <= (joystick_0[8] & scan_counter[2]) | (joystick_0[11] & scan_counter[1]) | joystick_0[4];
 		joyrept_0[1] <= (joystick_0[9] & scan_counter[2]) | (joystick_0[10] & scan_counter[1]) | joystick_0[5];
-		
+
 		joyrept_1[0] <= (joystick_1[8] & scan_counter[2]) | (joystick_1[11] & scan_counter[1]) | joystick_1[4];
 		joyrept_1[1] <= (joystick_1[9] & scan_counter[2]) | (joystick_1[10] & scan_counter[1]) | joystick_1[5];
 
@@ -489,10 +506,10 @@ XE1AP #(40) XE1AP		// for CyberStick - 40 clock cycles per microsecond (40MHz)
    .joystick_0(joystick_0),
    .joystick_l_analog_0(joy_analog_a),
    .joystick_r_analog_0(joy_analog_b),
-	
+
 	.orientation(0),			// throttle on left side, stick on right side
    .req(strA),					// signal requesting response from XE-1AP (on return to high)
-									// pin 8 on original 9-pin connector 
+									// pin 8 on original 9-pin connector
    .lo_hi(xe1_trg2),			// pin 6 on original 9-pin connector
    .ack(xe1_trg1),			// pin 7 on original 9-pin connector
    .data(xe1_data),			// Data[3] = pin 4 on original 9-pin connector
@@ -504,8 +521,46 @@ XE1AP #(40) XE1AP		// for CyberStick - 40 clock cycles per microsecond (40MHz)
 
 );
 
-////////////////////////////  End Joystick  ////////////////////////////////// 
+////////////////////////////  End Joystick  //////////////////////////////////
 
+// [MiSTer-DB9 BEGIN] - DB9/SNAC8 support: joystick mux and controller modules
+
+wire [15:0] joydb_1 = JOY_FLAG[2] ? JOYDB9MD_1 : JOY_FLAG[1] ? JOYDB15_1 : '0;
+wire [15:0] joydb_2 = JOY_FLAG[2] ? JOYDB9MD_2 : JOY_FLAG[1] ? JOYDB15_2 : '0;
+wire        joydb_1ena = |JOY_FLAG[2:1]              ;
+wire        joydb_2ena = |JOY_FLAG[2:1] & JOY_FLAG[0];
+
+//BARLDU - X68000 custom mapping: {B, A, Right, Left, Down, Up} active-low
+wire [5:0] joyA = joydb_1ena ?
+    ~(OSD_STATUS ? 6'b0 : {joydb_1[5], joydb_1[4], joydb_1[0], joydb_1[1], joydb_1[2], joydb_1[3]})
+    : joyA_USB;
+
+wire [5:0] joyB = joydb_2ena ?
+    ~(OSD_STATUS ? 6'b0 : {joydb_2[5], joydb_2[4], joydb_2[0], joydb_2[1], joydb_2[2], joydb_2[3]})
+    : joydb_1ena ? joyA_USB : joyB_USB;
+
+reg [15:0] JOYDB9MD_1,JOYDB9MD_2;
+joy_db9md joy_db9md
+(
+  .clk       ( CLK_JOY    ), //40-50MHz
+  .joy_split ( JOY_SPLIT  ),
+  .joy_mdsel ( JOY_MDSEL  ),
+  .joy_in    ( JOY_MDIN   ),
+  .joystick1 ( JOYDB9MD_1 ),
+  .joystick2 ( JOYDB9MD_2 )
+);
+
+reg [15:0] JOYDB15_1,JOYDB15_2;
+joy_db15 joy_db15
+(
+  .clk       ( CLK_JOY   ), //48MHz
+  .JOY_CLK   ( JOY_CLK   ),
+  .JOY_DATA  ( JOY_DATA  ),
+  .JOY_LOAD  ( JOY_LOAD  ),
+  .joystick1 ( JOYDB15_1 ),
+  .joystick2 ( JOYDB15_2 )
+);
+// [MiSTer-DB9 END]
 
 hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2400), .PS2WE(1), .VDNUM(4)) hps_io
 (
@@ -562,7 +617,10 @@ hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2400), .PS2WE(1), .VDNUM(4)) hps_io
 	.joystick_0(joystick_0),
 	.joystick_1(joystick_1),
 	.joystick_l_analog_0(joy_analog_a),
-	.joystick_r_analog_0(joy_analog_b)
+	.joystick_r_analog_0(joy_analog_b),
+	// [MiSTer-DB9 BEGIN] - DB9/SNAC8 support
+	.joy_raw(OSD_STATUS? (joydb_1[11:0] | joydb_2[11:0]) : 11'b0)
+	// [MiSTer-DB9 END]
 );
 
 /////////////////  RESET  /////////////////////////
@@ -637,9 +695,13 @@ wire mt32_available;
 //wire mt32_use  = mt32_available & ~mt32_disable;
 wire mt32_mute = mt32_available &  mt32_disable;
 
+wire [6:0] USER_IN_MT32 = mt32_disable ? 1 : USER_IN[6:0];
+wire [6:0] USER_OUT_MT32;
 mt32pi mt32pi
 (
 	.*,
+	.USER_IN(USER_IN_MT32),
+	.USER_OUT(USER_OUT_MT32),
 	.reset(mt32_reset),
 	.midi_tx(UART_TXD | mt32_mute)
 );
