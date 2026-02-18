@@ -169,8 +169,10 @@ module emu
 	// 1 - D-/TX
 	// 2..6 - USR2..USR6
 	// Set USER_OUT to 1 to read from USER_IN.
-	input   [6:0] USER_IN,
-	output  [6:0] USER_OUT,
+	output        USER_OSD,
+	output  [1:0] USER_MODE,
+	input   [7:0] USER_IN,
+	output  [7:0] USER_OUT,
 
 	input         OSD_STATUS
 );
@@ -178,6 +180,16 @@ module emu
 ///////// Default values for ports not used in this core /////////
 
 assign ADC_BUS  = 'Z;
+
+wire         CLK_JOY = CLK_50M;         //Assign clock between 40-50Mhz
+wire   [2:0] JOY_FLAG  = {status[62],status[63],status[61]}; //Assign 3 bits of status (31:29) o (63:61)
+wire         JOY_CLK, JOY_LOAD, JOY_SPLIT, JOY_MDSEL;
+wire   [5:0] JOY_MDIN  = JOY_FLAG[2] ? {USER_IN[6],USER_IN[3],USER_IN[5],USER_IN[7],USER_IN[1],USER_IN[2]} : '1;
+wire         JOY_DATA  = JOY_FLAG[1] ? USER_IN[5] : '1;
+assign       USER_OUT  = JOY_FLAG[2] ? {3'b111,JOY_SPLIT,3'b111,JOY_MDSEL} : JOY_FLAG[1] ? {6'b111111,JOY_CLK,JOY_LOAD} : '1;
+assign       USER_MODE = JOY_FLAG[2:1] ;
+assign       USER_OSD  = joydb_1[10] & joydb_1[6];
+
 assign {UART_RTS, UART_DTR} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = '0;  
@@ -243,6 +255,9 @@ parameter CONF_STR = {
 	"h1P3OTV,SoundFont,0,1,2,3,4,5,6,7;",
 	"h1P3-;",
 	"h1P3r8,Reset Hanging Notes;",
+	"-;",
+	"oUV,UserIO Joystick,Off,DB9MD,DB15 ;",
+	"oT,UserIO Players, 1 Player,2 Players;",
 	"-;",
 	"o0,CPU speed,Normal,Turbo;",
 	"R7,NMI Button;",
@@ -320,8 +335,8 @@ wire  [1:0] buttons;
 
 wire [15:0] joystick_0, joystick_1;
 
-wire  [5:0] joyA = ~{joystick_0[5:4],joystick_0[0] | joystick_0[6],joystick_0[1] | joystick_0[6],joystick_0[2] | joystick_0[7],joystick_0[3] | joystick_0[7]};
-wire  [5:0] joyB = ~{joystick_1[5:4],joystick_1[0] | joystick_1[6],joystick_1[1] | joystick_1[6],joystick_1[2] | joystick_1[7],joystick_1[3] | joystick_1[7]};
+wire  [5:0] joyA_USB = ~{joystick_0[5:4],joystick_0[0] | joystick_0[6],joystick_0[1] | joystick_0[6],joystick_0[2] | joystick_0[7],joystick_0[3] | joystick_0[7]};
+wire  [5:0] joyB_USB = ~{joystick_1[5:4],joystick_1[0] | joystick_1[6],joystick_1[1] | joystick_1[6],joystick_1[2] | joystick_1[7],joystick_1[3] | joystick_1[7]};
 
 wire        ioctl_download;
 wire  [7:0] ioctl_index;
@@ -357,6 +372,46 @@ wire forced_scandoubler;
 wire [21:0] gamma_bus;
 wire  [7:0] uart1_mode;
 wire [31:0] uart1_speed;
+
+//BARLDU
+wire [5:0] joyA =	joydb_1ena ?
+					~(OSD_STATUS? 6'b000000 : {joydb_1[5], joydb_1[4], joydb_1[0], joydb_1[1], joydb_1[2], joydb_1[3]}) :
+					joyA_USB;
+
+wire [5:0] joyB =	joydb_2ena ?
+					~(OSD_STATUS? 6'b000000 : {joydb_2[5], joydb_2[4], joydb_2[0], joydb_2[1], joydb_2[2], joydb_2[3]}) :
+					joydb_1ena ? joyA_USB : joyB_USB;
+
+wire [15:0] joydb_1 = JOY_FLAG[2] ? JOYDB9MD_1 : JOY_FLAG[1] ? JOYDB15_1 : '0;
+wire [15:0] joydb_2 = JOY_FLAG[2] ? JOYDB9MD_2 : JOY_FLAG[1] ? JOYDB15_2 : '0;
+wire        joydb_1ena = |JOY_FLAG[2:1]              ;
+wire        joydb_2ena = |JOY_FLAG[2:1] & JOY_FLAG[0];
+
+//----BA 9876543210
+//----MS ZYXCBAUDLR
+reg [15:0] JOYDB9MD_1,JOYDB9MD_2;
+joy_db9md joy_db9md
+(
+  .clk       ( CLK_JOY    ), //40-50MHz
+  .joy_split ( JOY_SPLIT  ),
+  .joy_mdsel ( JOY_MDSEL  ),
+  .joy_in    ( JOY_MDIN   ),
+  .joystick1 ( JOYDB9MD_1 ),
+  .joystick2 ( JOYDB9MD_2 )
+);
+
+//----BA 9876543210
+//----LS FEDCBAUDLR
+reg [15:0] JOYDB15_1,JOYDB15_2;
+joy_db15 joy_db15
+(
+  .clk       ( CLK_JOY   ), //48MHz
+  .JOY_CLK   ( JOY_CLK   ),
+  .JOY_DATA  ( JOY_DATA  ),
+  .JOY_LOAD  ( JOY_LOAD  ),
+  .joystick1 ( JOYDB15_1 ),
+  .joystick2 ( JOYDB15_2 )
+);
 
 hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2400), .PS2WE(1), .VDNUM(4)) hps_io
 (
@@ -411,7 +466,8 @@ hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2400), .PS2WE(1), .VDNUM(4)) hps_io
 	.RTC(sysrtc),
 
 	.joystick_0(joystick_0),
-	.joystick_1(joystick_1)
+	.joystick_1(joystick_1),
+	.joy_raw(OSD_STATUS? (joydb_1[11:0] | joydb_2[11:0]) : 11'b0)
 );
 
 /////////////////  RESET  /////////////////////////
@@ -486,9 +542,13 @@ wire mt32_available;
 //wire mt32_use  = mt32_available & ~mt32_disable;
 wire mt32_mute = mt32_available &  mt32_disable;
 
+wire [6:0] USER_IN_MT32 = mt32_disable ? 1 : USER_IN[6:0];
+wire [6:0] USER_OUT_MT32;
 mt32pi mt32pi
 (
 	.*,
+	.USER_IN(USER_IN_MT32),
+	.USER_OUT(USER_OUT_MT32),
 	.reset(mt32_reset),
 	.midi_tx(UART_TXD | mt32_mute)
 );
