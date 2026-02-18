@@ -58,6 +58,8 @@ module emu
 	input  [11:0] HDMI_WIDTH,
 	input  [11:0] HDMI_HEIGHT,
 	output        HDMI_FREEZE,
+	output        HDMI_BLACKOUT,
+	output        HDMI_BOB_DEINT,
 
 `ifdef MISTER_FB
 	// Use framebuffer in DDRAM
@@ -197,6 +199,8 @@ assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DD
 assign VGA_SCALER = 0;
 assign VGA_DISABLE = 0;
 assign HDMI_FREEZE = 0;
+assign HDMI_BLACKOUT = 0;
+assign HDMI_BOB_DEINT = 0;
 
 assign LED_POWER = 0;
 assign BUTTONS = 0;
@@ -214,58 +218,64 @@ assign AUDIO_MIX = status[3:2];
 // 0         1         2         3          4         5         6
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// X XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX XX      XXX
+// X XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX XXXX*XXXXXX
 
 `include "build_id.v" 
 parameter CONF_STR = {
 	"X68000;UART115200,MIDI;",
 	"-;",
-	"S0,D88,FDD0;",
-	"S1,D88,FDD1;",
+	"P1,Floppy Disk;",
+	"P1S0,D88,FDD0;",
+	"P1R9,Save FDD0 changes to SD;",
+	"P1RB,Eject FDD0;",
+	"P1-;",
+	"P1S1,D88,FDD1;",
+	"P1RA,Save FDD1 changes to SD;",
+	"P1RC,Eject FDD1;",
 	"SC2,HDF,SASI Hard Disk;",
-	"SC3,RAM,SRAM;",
 	"-;",
-	"R9,Save FDD0 changes to SD;",
-	"RA,Save FDD1 changes to SD;",
+	"P3,SRAM;",
+	"P3SC3,RAM,SRAM;",
+	"P3RD,Load SRAM from SD Card;",
+	"P3RE,Save SRAM to SD Card;",
 	"-;",
-	"RB,Eject FDD0;",
-	"RC,Eject FDD1;",
-	"-;",
-	"RD,Load SRAM from SD Card;",
-	"RE,Save SRAM to SD Card;",
-	"-;",
-	"P1,Audio & Video;",
-	"P1-;",
-	"P1O23,Stereo Mix,None,25%,50%,100%;",
-//	"d0P1OM,Vertical Crop,Disabled,216p(5x);",
-	"d0P1ONQ,Crop Offset,0,2,4,8,10,12,-12,-10,-8,-6,-4,-2;",
-	"P1ORS,Scale,Normal,V-Integer,Narrower HV-Integer,Wider HV-Integer;",
-	"P1-;",
-	"P1o1,Video Frequency,60fps,Original;",
-	"P1O45,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
-//	"P1OFH,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
-	"h1P3,MT32-pi;",
-	"h1P3-;",
-	"h1P3OI,Use MT32-pi,Yes,No;",
-	"h1P3o9A,Show Info,No,Yes,LCD-On(non-FB),LCD-Auto(non-FB);",
-	"h1P3-;",
-	"h1P3-,Default Config:;",
-	"h1P3OJ,Synth,Munt,FluidSynth;",
-	"h1P3OKL,Munt ROM,MT-32 v1,MT-32 v2,CM-32L;",
-	"h1P3OTV,SoundFont,0,1,2,3,4,5,6,7;",
-	"h1P3-;",
-	"h1P3r8,Reset Hanging Notes;",
+	"P4,Audio & Video;",
+	"P4-;",
+	"P4O23,Stereo Mix,None,25%,50%,100%;",
+//	"d0P4OM,Vertical Crop,Disabled,216p(5x);",
+	"d0P4ONQ,Crop Offset,0,2,4,8,10,12,-12,-10,-8,-6,-4,-2;",
+	"P4ORS,Scale,Normal,V-Integer,Narrower HV-Integer,Wider HV-Integer;",
+	"P4-;",
+	"P4o1,Video Frequency,60fps,Original;",
+	"P4O45,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
+//	"P4OFH,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
+	"h1P5,MT32-pi;",
+	"h1P5-;",
+	"h1P5OI,Use MT32-pi,Yes,No;",
+	"h1P5o9A,Show Info,No,Yes,LCD-On(non-FB),LCD-Auto(non-FB);",
+	"h1P5-;",
+	"h1P5-,Default Config:;",
+	"h1P5OJ,Synth,Munt,FluidSynth;",
+	"h1P5OKL,Munt ROM,MT-32 v1,MT-32 v2,CM-32L;",
+	"h1P5OTV,SoundFont,0,1,2,3,4,5,6,7;",
+	"h1P5-;",
+	"h1P5r8,Reset Hanging Notes;",
 	"-;",
 	"oUV,UserIO Joystick,Off,DB9MD,DB15 ;",
 	"oT,UserIO Players, 1 Player,2 Players;",
+	"-;",
+	"o57,Controller,2 Button,2 Turbo,MegaDrive 3,Magical 6,Capcom 6,Double-DPad,CyberStick;",
+//	"o24,KBD layout,JP Func.,JP Pos.,US Std,US Alt,Zuiki X68KZ;",													// To be added soon
+	"o23,KBD layout,JP Func.,JP Pos.,US Std,US Alt;",
 	"-;",
 	"o0,CPU speed,Normal,Turbo;",
 	"R7,NMI Button;",
 	"R8,Power Button;",
 	"R0,Reset;",
 	"-;",
-	"J,Fire 1,Fire 2,Run,Select;",
-	"jn,Fire 1,Fire 2,Run,Select;",
+	"J,Button 1,Button 2,Run,Select,Button 3,Button 4,Button 5,Button 6;",
+	"jn,A,B,Run,Select,X,Y,L,R;",
+	"jp,A,B,Run,Select,X,Y,L,R;",
 	"I,",
 	"MT32-pi: SoundFont #0,",
 	"MT32-pi: SoundFont #1,",
@@ -333,11 +343,6 @@ sdramclk_ddr
 wire [63:0] status;
 wire  [1:0] buttons;
 
-wire [15:0] joystick_0, joystick_1;
-
-wire  [5:0] joyA_USB = ~{joystick_0[5:4],joystick_0[0] | joystick_0[6],joystick_0[1] | joystick_0[6],joystick_0[2] | joystick_0[7],joystick_0[3] | joystick_0[7]};
-wire  [5:0] joyB_USB = ~{joystick_1[5:4],joystick_1[0] | joystick_1[6],joystick_1[1] | joystick_1[6],joystick_1[2] | joystick_1[7],joystick_1[3] | joystick_1[7]};
-
 wire        ioctl_download;
 wire  [7:0] ioctl_index;
 wire        ioctl_wr;
@@ -373,13 +378,164 @@ wire [21:0] gamma_bus;
 wire  [7:0] uart1_mode;
 wire [31:0] uart1_speed;
 
-//BARLDU
-wire [5:0] joyA =	joydb_1ena ?
+wire [15:0] joystick_0, joystick_1;
+wire [15:0] joy_analog_a, joy_analog_b;
+
+wire        strA_tristate;
+wire        strA;
+wire  [5:0] joyA_USB = (status[39:37] == 3'b000) ?		// default 2-button
+						~{joystick_0[5:4], (joystick_0[0]|joystick_0[6]), (joystick_0[1]|joystick_0[6]), (joystick_0[2]|joystick_0[7]), (joystick_0[3]|joystick_0[7])} :
+
+						// Turbo 2-button
+						 (status[39:37] == 3'b001) ?
+						~{joyrept_0[1:0], (joystick_0[0]|joystick_0[6]), (joystick_0[1]|joystick_0[6]), (joystick_0[2]|joystick_0[7]), (joystick_0[3]|joystick_0[7])} :
+
+						// MegaDrive 3-button - strobe = low
+						 ((status[39:37] == 3'b010) && (strA == 1'b0)) ?
+						~{joystick_0[6], joystick_0[4], 1'b1, 1'b1, joystick_0[2], joystick_0[3]} :
+						// strobe - high
+						 ((status[39:37] == 3'b010) && (strA == 1'b1)) ?
+						~{joystick_0[9],  joystick_0[5], joystick_0[0], joystick_0[1], joystick_0[2], joystick_0[3]} :
+
+						// CyberStick (XE-1AP protocol)
+						(status[39:37] == 3'b110) ?
+						{xe1_trg2, xe1_trg1, xe1_data[3:0]} :
+
+						// Magical 6-button - strobe = low
+						 ((status[39:37] == 3'b011) && (strA == 1'b0)) ?
+						~{joystick_0[9],  joystick_0[8], joystick_0[0], joystick_0[1], joystick_0[2], joystick_0[3]} :
+						// strobe = high
+						 ((status[39:37] == 3'b011) && (strA == 1'b1)) ?
+						~{joystick_0[5],  joystick_0[4], joystick_0[10],  joystick_0[11], 1'b1, 1'b1} :
+
+						// Capcom 6-button - strobe = low
+						 ((status[39:37] == 3'b100) && (strA == 1'b0)) ?
+						~{joystick_0[5],  joystick_0[4], joystick_0[0], joystick_0[1], joystick_0[2], joystick_0[3]} :
+						// strobe = high
+						 ((status[39:37] == 3'b100) && (strA == 1'b1)) ?
+						~{joystick_0[6], joystick_0[10], joystick_0[7], joystick_0[8], joystick_0[9], joystick_0[11]} :
+
+						// Double-DPad - strobe = low
+						 ((status[39:37] == 3'b101) && (strA == 1'b0)) ?
+						~{joystick_0[6],  joystick_0[7], joystick_0[0], joystick_0[1], joystick_0[2], joystick_0[3]} :
+						// strobe = high
+						 ((status[39:37] == 3'b101) && (strA == 1'b1)) ?
+						~{joystick_0[6], joystick_0[7], joystick_0[4], joystick_0[9], joystick_0[5], joystick_0[8]} :
+
+						6'b111111;
+
+wire        strB;
+wire        strB_tristate;
+wire  [5:0] joyB_USB = ((status[39:37] == 3'b000) || (status[38:36] == 3'b110)) ?		// default 2-button or CyberStick (only support 1 CyberStick)
+						~{joystick_1[5:4], (joystick_1[0]|joystick_1[6]), (joystick_1[1]|joystick_1[6]), (joystick_1[2]|joystick_1[7]), (joystick_1[3]|joystick_1[7])} :
+
+						// Turbo 2-button
+						 (status[39:37] == 3'b001) ?
+						~{joyrept_1[1:0], (joystick_1[0]|joystick_1[6]), (joystick_1[1]|joystick_1[6]), (joystick_1[2]|joystick_1[7]), (joystick_1[3]|joystick_1[7])} :
+
+						// MegaDrive 3-button - strobe = low
+						 ((status[39:37] == 3'b010) && (strB == 1'b0)) ?
+						~{joystick_1[6], joystick_1[4], 1'b1, 1'b1, joystick_1[2], joystick_1[3]} :
+						// strobe - high
+						 ((status[39:37] == 3'b010) && (strB == 1'b1)) ?
+						~{joystick_1[9],  joystick_1[5], joystick_1[0], joystick_1[1], joystick_1[2], joystick_1[3]} :
+
+						// Magical 6-button - strobe = low
+						 ((status[39:37] == 3'b011) && (strA == 1'b0)) ?
+						~{joystick_1[9],  joystick_1[8], joystick_1[0], joystick_1[1], joystick_1[2], joystick_1[3]} :
+						// strobe = high
+						 ((status[39:37] == 3'b011) && (strA == 1'b1)) ?
+						~{joystick_1[5],  joystick_1[4], joystick_1[10],  joystick_1[11], 1'b1, 1'b1} :
+						
+						// Capcom 6-button - strobe = low
+						((status[39:37] == 3'b100) && (strB == 1'b0)) ?
+						~{joystick_1[5],  joystick_1[4], joystick_1[0], joystick_1[1], joystick_1[2], joystick_1[3]} :
+						// strobe = high
+						((status[39:37] == 3'b100) && (strB == 1'b1)) ?
+						~{joystick_1[6], joystick_1[10], joystick_1[7], joystick_1[8], joystick_1[9], joystick_1[11]}:
+
+						// Double-DPad - strobe = low
+						 ((status[39:37] == 3'b101) && (strB == 1'b0)) ?
+						~{joystick_1[6],  joystick_1[7], joystick_1[0], joystick_1[1], joystick_1[2], joystick_1[3]} :
+						// strobe = high
+						 ((status[39:37] == 3'b101) && (strB == 1'b1)) ?
+						~{joystick_1[6], joystick_1[7], joystick_1[4], joystick_1[9], joystick_1[5], joystick_1[8]} :
+
+						6'b111111;
+
+
+////////////////////////////  Joystick values  ////////////////////////////////// 
+
+reg [3:0] scan_counter = 0;
+reg [1:0] joyrept_0;
+reg [1:0] joyrept_1;
+
+
+always @(posedge clk_sys) begin
+	reg VBlank_ff;
+
+	// turbo-repeat based on VBLANK
+	VBlank_ff <= VBlank;
+	if ((VBlank_ff == 1'b0) && (VBlank == 1'b1)) begin
+		scan_counter <= scan_counter + 1'd1;
+
+		// repeat counters
+		joyrept_0[0] <= (joystick_0[8] & scan_counter[2]) | (joystick_0[11] & scan_counter[1]) | joystick_0[4];
+		joyrept_0[1] <= (joystick_0[9] & scan_counter[2]) | (joystick_0[10] & scan_counter[1]) | joystick_0[5];
+		
+		joyrept_1[0] <= (joystick_1[8] & scan_counter[2]) | (joystick_1[11] & scan_counter[1]) | joystick_1[4];
+		joyrept_1[1] <= (joystick_1[9] & scan_counter[2]) | (joystick_1[10] & scan_counter[1]) | joystick_1[5];
+
+	end
+end
+
+wire xe1_trg1;
+wire xe1_trg2;
+wire xe1_runbtn;
+wire xe1_selbtn;
+wire [3:0] xe1_data;
+
+
+XE1AP #(40) XE1AP		// for CyberStick - 40 clock cycles per microsecond (40MHz)
+(
+	.reset(reset),
+	.clk_sys(clk_sys),
+
+   .joystick_0(joystick_0),
+   .joystick_l_analog_0(joy_analog_a),
+   .joystick_r_analog_0(joy_analog_b),
+	
+	.orientation(0),			// throttle on left side, stick on right side
+   .req(strA),					// signal requesting response from XE-1AP (on return to high)
+									// pin 8 on original 9-pin connector 
+   .lo_hi(xe1_trg2),			// pin 6 on original 9-pin connector
+   .ack(xe1_trg1),			// pin 7 on original 9-pin connector
+   .data(xe1_data),			// Data[3] = pin 4 on original 9-pin connector
+									// Data[2] = pin 3 on original 9-pin connector
+									// Data[1] = pin 2 on original 9-pin connector
+									// Data[0] = pin 1 on original 9-pin connector
+   .run_btn(xe1_runbtn),	// need to send back for the XHE-3 PC Engine attachment (not in use here)
+   .select_btn(xe1_selbtn)	// need to send back for the XHE-3 PC Engine attachment (not in use here)
+
+);
+
+////////////////////////////  End Joystick  ////////////////////////////////// 
+
+//SCMXYZ BARLDU
+wire [5:0] joyA =	// UserIO Joystick - strobe = low
+					(joydb_1ena && (strA == 1'b0)) ?
 					~(OSD_STATUS? 6'b000000 : {joydb_1[5], joydb_1[4], joydb_1[0], joydb_1[1], joydb_1[2], joydb_1[3]}) :
+					// UserIO Joystick - strobe = high
+					(joydb_1ena && (strA == 1'b1)) ?
+					~(OSD_STATUS? 6'b000000 : {joydb_1[10], joydb_1[6], joydb_1[11], joydb_1[7], joydb_1[8], joydb_1[9]}) :
 					joyA_USB;
 
-wire [5:0] joyB =	joydb_2ena ?
+wire [5:0] joyB =	// UserIO Joystick - strobe = low
+					(joydb_2ena && (strB == 1'b0)) ?
 					~(OSD_STATUS? 6'b000000 : {joydb_2[5], joydb_2[4], joydb_2[0], joydb_2[1], joydb_2[2], joydb_2[3]}) :
+					// UserIO Joystick - strobe = high
+					(joydb_2ena && (strB == 1'b1)) ?
+					~(OSD_STATUS? 6'b000000 : {joydb_2[10], joydb_2[6], joydb_2[11], joydb_2[7], joydb_2[8], joydb_2[9]}) :
 					joydb_1ena ? joyA_USB : joyB_USB;
 
 wire [15:0] joydb_1 = JOY_FLAG[2] ? JOYDB9MD_1 : JOY_FLAG[1] ? JOYDB15_1 : '0;
@@ -467,7 +623,9 @@ hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2400), .PS2WE(1), .VDNUM(4)) hps_io
 
 	.joystick_0(joystick_0),
 	.joystick_1(joystick_1),
-	.joy_raw(OSD_STATUS? (joydb_1[11:0] | joydb_2[11:0]) : 11'b0)
+	.joy_raw(OSD_STATUS? (joydb_1[11:0] | joydb_2[11:0]) : 11'b0),
+	.joystick_l_analog_0(joy_analog_a),
+	.joystick_r_analog_0(joy_analog_b)
 );
 
 /////////////////  RESET  /////////////////////////
@@ -597,6 +755,7 @@ wire [1:0] fdsync = status[10:9];
 wire [1:0] fdeject = status[12:11];
 wire sramld	= status[13];
 wire sramst = status[14];
+wire [1:0] kbdtype = status[35:34];
 
 assign CLK_VIDEO = clk_vid;
 assign AUDIO_S = 1;
@@ -625,7 +784,7 @@ always @(posedge clk_sys) begin
 	div_snd2 <= div_snd2 + 1'd1;
 	div_opm <= div_opm + 1'd1;
 
-	if (div_snd2 == 9) div_snd <= 0;
+	if (div_snd2 == 9) div_snd2 <= 0;
 	if (div_snd == 4)  div_snd <= 0;
 	if (div_opm == 19) div_opm <= 0;
 
@@ -705,7 +864,11 @@ X68K_top X68K_top
 	.mist_buffdin(sd_buff_din),
 	.mist_buffwr(sd_buff_wr),
 
+	.pStrA(strA_tristate),		// tri-state logic is used on this signal, but SignalTap can't deal with this.
+	.pJoySelA(strA),				// non-tristate version of the line
 	.pJoyA(joyA),
+	.pStrB(strB_tristate),
+	.pJoySelB(strB),
 	.pJoyB(joyB),
 
 	.pFDSYNC(fdsync),
@@ -717,6 +880,8 @@ X68K_top X68K_top
 	.pPsw({~NMI,~POWER}),
 	.pSramld(sramld),
 	.pSramst(sramst),
+
+	.pkbdtype(kbdtype),
 
 	.pMidi_in(UART_RXD),
 	.pMidi_out(UART_TXD),
