@@ -619,7 +619,7 @@ hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2400), .PS2WE(1), .VDNUM(4)) hps_io
 	.joystick_l_analog_0(joy_analog_a),
 	.joystick_r_analog_0(joy_analog_b),
 	// [MiSTer-DB9 BEGIN] - DB9/SNAC8 support
-	.joy_raw(OSD_STATUS? (joydb_1[11:0] | joydb_2[11:0]) : 11'b0)
+	.joy_raw(OSD_STATUS? (joydb_1[11:0] | joydb_2[11:0]) : 12'b0)
 	// [MiSTer-DB9 END]
 );
 
