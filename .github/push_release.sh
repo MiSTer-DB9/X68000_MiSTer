@@ -4,7 +4,7 @@
 set -euo pipefail
 
 CORE_NAME="X68000"
-MAIN_BRANCH="master"
+MAIN_BRANCH="dev"
 COMPILATION_OUTPUT="output_files/X68000.rbf"
 
 if [[ "${FORCED:-false}" != "true" ]] && [[ "$(git log -n 1 --pretty=format:%an)" == "The CI/CD Bot" ]] ; then
