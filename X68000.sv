@@ -181,12 +181,12 @@ module emu
 
 assign ADC_BUS  = 'Z;
 
-wire         CLK_JOY = CLK_50M;         //Assign clock between 40-50Mhz
-wire   [2:0] JOY_FLAG  = {status[62],status[63],status[61]}; //Assign 3 bits of status (31:29) o (63:61)
+wire         CLK_JOY = CLK_50M & ~mt32_use;         //Assign clock between 40-50Mhz
+wire   [2:0] JOY_FLAG  = mt32_use ? 3'b000 : {status[62],status[63],status[61]}; //Assign 3 bits of status (31:29) o (63:61)
 wire         JOY_CLK, JOY_LOAD, JOY_SPLIT, JOY_MDSEL;
 wire   [5:0] JOY_MDIN  = JOY_FLAG[2] ? {USER_IN[6],USER_IN[3],USER_IN[5],USER_IN[7],USER_IN[1],USER_IN[2]} : '1;
 wire         JOY_DATA  = JOY_FLAG[1] ? USER_IN[5] : '1;
-assign       USER_OUT  = JOY_FLAG[2] ? {3'b111,JOY_SPLIT,3'b111,JOY_MDSEL} : JOY_FLAG[1] ? {6'b111111,JOY_CLK,JOY_LOAD} : '1;
+//assign       USER_OUT  = JOY_FLAG[2] ? {3'b111,JOY_SPLIT,3'b111,JOY_MDSEL} : JOY_FLAG[1] ? {6'b111111,JOY_CLK,JOY_LOAD} : '1;
 assign       USER_MODE = JOY_FLAG[2:1] ;
 assign       USER_OSD  = joydb_1[10] & joydb_1[6];
 
@@ -413,6 +413,25 @@ joy_db15 joy_db15
   .joystick2 ( JOYDB15_2 )
 );
 
+always_comb begin
+	USER_OUT = 8'hFF;
+	if (JOY_FLAG[1]) begin
+		USER_OUT[0] = JOY_LOAD;
+		USER_OUT[1] = JOY_CLK;
+		USER_OUT[6] = 1'b1;
+		USER_OUT[4] = 1'b1;
+	end
+	else if (JOY_FLAG[2]) begin
+		USER_OUT[0] = JOY_MDSEL;
+		USER_OUT[1] = 1'b1;
+		USER_OUT[6] = 1'b1;
+		USER_OUT[4] = JOY_SPLIT;
+	end
+	else begin
+		USER_OUT[6:0] = USER_OUT_MT32;
+	end
+end
+
 hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2400), .PS2WE(1), .VDNUM(4)) hps_io
 (
 	.clk_sys(clk_sys),
@@ -539,10 +558,10 @@ wire        midi_rx;
 
 wire mt32_newmode;
 wire mt32_available;
-//wire mt32_use  = mt32_available & ~mt32_disable;
+wire mt32_use  = mt32_available & ~mt32_disable;
 wire mt32_mute = mt32_available &  mt32_disable;
 
-wire [6:0] USER_IN_MT32 = mt32_disable ? 1 : USER_IN[6:0];
+wire [6:0] USER_IN_MT32 = JOY_FLAG[2:1] ? 1 : USER_IN[6:0];
 wire [6:0] USER_OUT_MT32;
 mt32pi mt32pi
 (
