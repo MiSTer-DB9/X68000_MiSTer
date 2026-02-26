@@ -173,6 +173,8 @@ module emu
 	output  [1:0] USER_MODE,
 	input   [7:0] USER_IN,
 	output  [7:0] USER_OUT,
+	input   [7:0] USER_IN2,
+	output  [7:0] USER_OUT2,
 
 	input         OSD_STATUS
 );
@@ -427,9 +429,6 @@ always_comb begin
 		USER_OUT[6] = 1'b1;
 		USER_OUT[4] = JOY_SPLIT;
 	end
-	else begin
-		USER_OUT[6:0] = USER_OUT_MT32;
-	end
 end
 
 hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2400), .PS2WE(1), .VDNUM(4)) hps_io
@@ -561,16 +560,16 @@ wire mt32_available;
 wire mt32_use  = mt32_available & ~mt32_disable;
 wire mt32_mute = mt32_available &  mt32_disable;
 
-wire [6:0] USER_IN_MT32 = JOY_FLAG[2:1] ? 1 : USER_IN[6:0];
-wire [6:0] USER_OUT_MT32;
+wire [6:0] USER_OUT2_int;
 mt32pi mt32pi
 (
 	.*,
-	.USER_IN(USER_IN_MT32),
-	.USER_OUT(USER_OUT_MT32),
+	.USER_IN(USER_IN2[6:0]),
+	.USER_OUT(USER_OUT2_int),
 	.reset(mt32_reset),
 	.midi_tx(UART_TXD | mt32_mute)
 );
+assign USER_OUT2 = {1'b1, USER_OUT2_int};
 
 reg mt32_info_req;
 reg [3:0] mt32_info_disp;
