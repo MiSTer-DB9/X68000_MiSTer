@@ -121,7 +121,8 @@ module sys_top
 	output  [7:0] LED,
 
 	///////// USER IO ///////////
-	inout   [7:0] USER_IO
+	inout   [7:0] USER_IO,
+	inout   [7:0] USER_IO2
 );
 
 //////////////////////  Secondary SD  ///////////////////////////////////
@@ -1628,6 +1629,17 @@ assign user_in[5] = SW[1] | USER_IO[5];
 assign user_in[6] =         USER_IO[6];
 assign user_in[7] =         USER_IO[7];
 
+assign USER_IO2[0] = !user_out2[0] ? 1'b0 : 1'bZ;
+assign USER_IO2[1] = !user_out2[1] ? 1'b0 : 1'bZ;
+assign USER_IO2[2] = !user_out2[2] ? 1'b0 : 1'bZ;
+assign USER_IO2[3] = !user_out2[3] ? 1'b0 : 1'bZ;
+assign USER_IO2[4] = !user_out2[4] ? 1'b0 : 1'bZ;
+assign USER_IO2[5] = !user_out2[5] ? 1'b0 : 1'bZ;
+assign USER_IO2[6] = !user_out2[6] ? 1'b0 : 1'bZ;
+assign USER_IO2[7] = !user_out2[7] ? 1'b0 : 1'bZ;
+
+assign user_in2 = USER_IO2;
+
 
 ///////////////////  User module connection ////////////////////////////
 
@@ -1662,6 +1674,7 @@ sync_fix sync_v(clk_vid, vs_emu, vs_fix);
 sync_fix sync_h(clk_vid, hs_emu, hs_fix);
 
 wire  [7:0] user_out, user_in;
+wire  [7:0] user_out2, user_in2;
 wire  [1:0] user_mode;
 wire        user_osd;
 
@@ -1832,7 +1845,9 @@ emu emu
 	.USER_OSD(user_osd),
 	.USER_MODE(user_mode),
 	.USER_OUT(user_out),
-	.USER_IN(user_in)
+	.USER_IN(user_in),
+	.USER_OUT2(user_out2),
+	.USER_IN2(user_in2)
 );
 
 endmodule
