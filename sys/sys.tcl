@@ -41,6 +41,21 @@ set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to USER_IO[*]
 set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to USER_IO[*]
 
 #============================================================
+# USER PORT 2
+#============================================================
+set_location_assignment PIN_AF13 -to USER_IO2[7]
+set_location_assignment PIN_AG13 -to USER_IO2[6]
+set_location_assignment PIN_AG10 -to USER_IO2[5]
+set_location_assignment PIN_AG9  -to USER_IO2[4]
+set_location_assignment PIN_U14  -to USER_IO2[3]
+set_location_assignment PIN_U13  -to USER_IO2[2]
+set_location_assignment PIN_AG8  -to USER_IO2[1]
+set_location_assignment PIN_AH8  -to USER_IO2[0]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to USER_IO2[*]
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to USER_IO2[*]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to USER_IO2[*]
+
+#============================================================
 # SDIO_CD or SPDIF_OUT
 #============================================================
 set_location_assignment PIN_AH7 -to SDCD_SPDIF
