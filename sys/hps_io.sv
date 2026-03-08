@@ -47,7 +47,9 @@ module hps_io #(parameter CONF_STR, CONF_STR_BRAM=0, PS2DIV=0, WIDE=0, VDNUM=1, 
 	output reg [15:0] joystick_l_analog_3,
 	output reg [15:0] joystick_l_analog_4,
 	output reg [15:0] joystick_l_analog_5,
+	// [MiSTer-DB9 BEGIN] - DB9/SNAC8 support
 	input      [15:0] joy_raw,
+	// [MiSTer-DB9 END]
 	output reg [15:0] joystick_r_analog_0,
 	output reg [15:0] joystick_r_analog_1,
 	output reg [15:0] joystick_r_analog_2,
@@ -349,8 +351,10 @@ always@(posedge clk_sys) begin : uio_block
 		end else begin
 
 			casex(cmd)
+				// [MiSTer-DB9 BEGIN] - DB9/SNAC8 support
 				// Reading user_io raw joy
 				'h0f: io_dout <= joy_raw;
+				// [MiSTer-DB9 END]
 				// buttons and switches
 				'h01: cfg <= io_din;
 				'h02: if(byte_cnt==1) joystick_0[15:0] <= io_din; else joystick_0[31:16] <= io_din;
