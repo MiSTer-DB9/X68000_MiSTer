@@ -26,7 +26,7 @@ CORE_NAME=(X68000USERIO2 X68000)
 MAIN_BRANCH="master"
 COMPILATION_INPUT=(X68000_USERIO2.qpf X68000.qsf)
 COMPILATION_OUTPUT=(output_files/X68000_USERIO2.rbf output_files/X68000.rbf)
-QUARTUS_IMAGE="theypsilon/quartus-lite-c5:17.0.2.docker0"
+QUARTUS_IMAGE="${QUARTUS_IMAGE:?QUARTUS_IMAGE env not set — populated by workflow Resolve-Quartus-image step}"
 
 if [[ "${FORCED:-false}" != "true" ]] && \
    [[ "$(git log -n 1 --pretty=format:%an)" == "The CI/CD Bot" ]] && \
