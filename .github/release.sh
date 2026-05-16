@@ -19,10 +19,10 @@ CORE_NAME=(X68000USERIO2 X68000)
 MAIN_BRANCH="master"
 COMPILATION_INPUT=(X68000_USERIO2.qpf X68000.qsf)
 COMPILATION_OUTPUT=(output_files/X68000_USERIO2.rbf output_files/X68000.rbf)
-# Docker path: QUARTUS_IMAGE from the workflow's Resolve-Quartus-image step.
-# Native path: QUARTUS_NATIVE_VERSION (resolved std key) + QUARTUS_NATIVE_HOME
-# (/opt/intelFPGA/<ver>, exported by the quartus-install-cache action). Exactly
-# one path is active per build; require at least one to be set.
+# Native Quartus Standard only: QUARTUS_NATIVE_VERSION (resolved std key from
+# the workflow's Resolve-Quartus-Standard-version step) + QUARTUS_NATIVE_HOME
+# (/opt/intelFPGA/<ver>, exported by the quartus-install-cache action). Both
+# required.
 resolve_quartus_env
 
 TAG_PREFIX="stable/${MAIN_BRANCH}/"
