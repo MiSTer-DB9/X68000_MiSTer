@@ -30,7 +30,7 @@ module emu
 	input         RESET,
 
 	//Must be passed to hps_io module
-	inout  [48:0] HPS_BUS,
+	inout  [45:0] HPS_BUS,
 
 	//Base video clock. Usually equals to CLK_SYS.
 	output        CLK_VIDEO,
@@ -265,12 +265,11 @@ joydb joydb (
 
 assign {UART_RTS, UART_DTR} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
-assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = '0;  
 
 assign VGA_SCALER = 0;
 assign VGA_DISABLE = 0;
 assign HDMI_FREEZE = 0;
-assign HDMI_BLACKOUT = 0;
+assign HDMI_BLACKOUT = 1;
 assign HDMI_BOB_DEINT = 0;
 
 assign LED_POWER = 0;
@@ -296,13 +295,16 @@ parameter CONF_STR = {
 	"X68000;UART115200,MIDI;",
 	"-;",
 	"P1,Floppy Disk;",
-	"P1S0,D88,FDD0;",
+	"P1S0,D88XDFDIMHDM,FDD0;",
 	"P1R9,Save FDD0 changes to SD;",
 	"P1RB,Eject FDD0;",
 	"P1-;",
-	"P1S1,D88,FDD1;",
+	"P1S1,D88XDFDIMHDM,FDD1;",
 	"P1RA,Save FDD1 changes to SD;",
 	"P1RC,Eject FDD1;",
+	"P1-;",
+	"P1-,Use same type in disks;",
+	"P1oFG,FDD wait (XDF/DIM),disable,seek,data,seek+data;",
 	"SC2,HDF,SASI Hard Disk;",
 	"-;",
 	"P3,SRAM;",
@@ -312,12 +314,14 @@ parameter CONF_STR = {
 	"-;",
 	"P4,Audio & Video;",
 	"P4-;",
+	"P4oQ,OPM Chip,JT51,IKAOPM;",
 	"P4O23,Stereo Mix,None,25%,50%,100%;",
 //	"d0P4OM,Vertical Crop,Disabled,216p(5x);",
 	"d0P4ONQ,Crop Offset,0,2,4,8,10,12,-12,-10,-8,-6,-4,-2;",
 	"P4ORS,Scale,Normal,V-Integer,Narrower HV-Integer,Wider HV-Integer;",
 	"P4-;",
 	"P4o1,Video Frequency,60fps,Original;",
+	"P4O[70:69],Video Mode,Stretch,Native;,;",
 	"P4O45,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
 //	"P4OFH,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
 	"h1P5,MT32-pi;",
@@ -332,9 +336,10 @@ parameter CONF_STR = {
 	"h1P5-;",
 	"h1P5r8,Reset Hanging Notes;",
 	"-;",
-	"o57,Controller,2 Button,2 Turbo,MegaDrive 3,Magical 6,Capcom 6,Double-DPad,CyberStick;",
-//	"o24,KBD layout,JP Func.,JP Pos.,US Std,US Alt,Zuiki X68KZ;",													// To be added soon
-	"o23,KBD layout,JP Func.,JP Pos.,US Std,US Alt;",
+	"o57,Joy1 type,2 Button,2 Turbo,MegaDrive 3,Magical 6,Capcom 6,Double-DPad,CyberStick;",
+	"oCE,Joy2 type,2 Button,2 Turbo,MegaDrive 3,Magical 6,Capcom 6,Double-DPad,CyberStick;",
+	"oB,Joystick swap,No,Yes;",
+	"o24,KBD layout,MiSTer,JP Func.,JP Pos.,US Std,US Alt;",
 	"-;",
 	// [MiSTer-DB9 BEGIN] - DB9/SNAC8 support
 	"O[127:126],UserIO Joystick,Off,Saturn,DB9MD,DB15;",
@@ -345,9 +350,30 @@ parameter CONF_STR = {
 	"-;",
 	// [MiSTer-DB9 END]
 	"o0,CPU speed,Normal,Turbo;",
+	"O[67],MIDI Board,Off,On;",
 	"R7,NMI Button;",
 	"R8,Power Button;",
 	"R0,Reset;",
+	"-;",
+	"P6,Debug;",
+	"P6-;",
+	"P6oL,Text Layer,On,Off;",
+	"P6oM,Graphic Layer,On,Off;",
+	"P6oN,Sprite Layer,On,Off;",
+	"P6oO,BG0 Layer,On,Off;",
+	"P6oP,BG1 Layer,On,Off;",
+	"P6-;",
+	"P6oR,Graph G0,On,Off;",
+	"P6oS,Graph G1,On,Off;",
+	"P6oT,Graph G2,On,Off;",
+	"P6oU,Graph G3,On,Off;",
+	"P6-;",
+	"P6O[65],Fast Clear,On,Off;",
+	"P6O[66],OPM Mute (debug),Off,On;",
+	"P6O[68],Use DDR3 for CPU,Yes,No;",
+	"P6-;",
+	"P6O[84],INT4 Enable,On,Off;",
+
 	"-;",
 	"J,Button 1,Button 2,Run,Select,Button 3,Button 4,Button 5,Button 6;",
 	"jn,A,B,Run,Select,X,Y,L,R;",
@@ -371,18 +397,18 @@ parameter CONF_STR = {
 /////////////////  CLOCKS  ////////////////////////
 
 wire clk_ram, clk_sys;
+wire clk_vid = clk_ram; // Video uses same 80 MHz clock (no CDC). Timing via polyclock.
 wire pll_locked;
 
 pll pll
 (
 	.refclk(CLK_50M),
 	.rst(0),
-	.outclk_0(clk_ram), // 80mhz
-	.outclk_1(clk_sys), // 40mhz
+	.outclk_0(clk_ram), // 80 MHz
+	.outclk_1(clk_sys), // 40 MHz
+	.outclk_2(),         // 80 MHz (unused)
 	.locked(pll_locked)
 );
-
-wire clk_vid = clk_ram;
 
 // Video oscillators
 // 40.00000 - CPU/Main Oscillator
@@ -456,89 +482,102 @@ wire [21:0] gamma_bus;
 wire  [7:0] uart1_mode;
 wire [31:0] uart1_speed;
 
+wire [22:0] ddr_addr;
+wire [15:0] ddr_din;
+wire [15:0] ddr_dout;
+wire        ddr_rd;
+wire  [1:0] ddr_wr;
+wire        ddr_ack;
+wire        ddr_ready;
+
 wire [15:0] joystick_0, joystick_1;
 wire [15:0] joy_analog_a, joy_analog_b;
+
+wire [15:0] joy_in_0 = status[43] ? joystick_1 : joystick_0;
+wire [15:0] joy_in_1 = status[43] ? joystick_0 : joystick_1;
+wire  [2:0] joy_mode_A = status[43] ? status[46:44] : status[39:37]; // Joy1 type follows physical joy0; swaps with Joy2 when swap active
+wire  [2:0] joy_mode_B = status[43] ? status[39:37] : status[46:44]; // Joy2 type follows physical joy1; swaps with Joy1 when swap active
 
 // [MiSTer-DB9 BEGIN] - DB9/SNAC8 support: USB joystick wires for mux
 wire        strA_tristate;
 wire        strA;
-wire  [5:0] joyA_USB = (status[39:37] == 3'b000) ?		// default 2-button
-						~{joystick_0[5:4], (joystick_0[0]|joystick_0[6]), (joystick_0[1]|joystick_0[6]), (joystick_0[2]|joystick_0[7]), (joystick_0[3]|joystick_0[7])} :
+wire  [5:0] joyA_USB = (joy_mode_A == 3'b000) ?		// default 2-button
+						~{joy_in_0[5:4], (joy_in_0[0]|joy_in_0[6]), (joy_in_0[1]|joy_in_0[6]), (joy_in_0[2]|joy_in_0[7]), (joy_in_0[3]|joy_in_0[7])} :
 
 						// Turbo 2-button
-						 (status[39:37] == 3'b001) ?
-						~{joyrept_0[1:0], (joystick_0[0]|joystick_0[6]), (joystick_0[1]|joystick_0[6]), (joystick_0[2]|joystick_0[7]), (joystick_0[3]|joystick_0[7])} :
+						 (joy_mode_A == 3'b001) ?
+						~{joyrept_0[1:0], (joy_in_0[0]|joy_in_0[6]), (joy_in_0[1]|joy_in_0[6]), (joy_in_0[2]|joy_in_0[7]), (joy_in_0[3]|joy_in_0[7])} :
 
 						// MegaDrive 3-button - strobe = low
-						 ((status[39:37] == 3'b010) && (strA == 1'b0)) ?
-						~{joystick_0[6], joystick_0[4], 1'b1, 1'b1, joystick_0[2], joystick_0[3]} :
+						 ((joy_mode_A == 3'b010) && (strA == 1'b0)) ?
+						~{joy_in_0[6], joy_in_0[4], 1'b1, 1'b1, joy_in_0[2], joy_in_0[3]} :
 						// strobe - high
-						 ((status[39:37] == 3'b010) && (strA == 1'b1)) ?
-						~{joystick_0[9],  joystick_0[5], joystick_0[0], joystick_0[1], joystick_0[2], joystick_0[3]} :
+						 ((joy_mode_A == 3'b010) && (strA == 1'b1)) ?
+						~{joy_in_0[9],  joy_in_0[5], joy_in_0[0], joy_in_0[1], joy_in_0[2], joy_in_0[3]} :
 
 						// CyberStick (XE-1AP protocol)
-						(status[39:37] == 3'b110) ?
+						(joy_mode_A == 3'b110) ?
 						{xe1_trg2, xe1_trg1, xe1_data[3:0]} :
 
 						// Magical 6-button - strobe = low
-						 ((status[39:37] == 3'b011) && (strA == 1'b0)) ?
-						~{joystick_0[9],  joystick_0[8], joystick_0[0], joystick_0[1], joystick_0[2], joystick_0[3]} :
+						 ((joy_mode_A == 3'b011) && (strA == 1'b0)) ?
+						~{joy_in_0[9],  joy_in_0[8], joy_in_0[0], joy_in_0[1], joy_in_0[2], joy_in_0[3]} :
 						// strobe = high
-						 ((status[39:37] == 3'b011) && (strA == 1'b1)) ?
-						~{joystick_0[5],  joystick_0[4], joystick_0[10],  joystick_0[11], 1'b1, 1'b1} :
+						 ((joy_mode_A == 3'b011) && (strA == 1'b1)) ?
+						~{joy_in_0[5],  joy_in_0[4], joy_in_0[10],  joy_in_0[11], 1'b1, 1'b1} :
 
 						// Capcom 6-button - strobe = low
-						 ((status[39:37] == 3'b100) && (strA == 1'b0)) ?
-						~{joystick_0[5],  joystick_0[4], joystick_0[0], joystick_0[1], joystick_0[2], joystick_0[3]} :
+						 ((joy_mode_A == 3'b100) && (strA == 1'b0)) ?
+						~{joy_in_0[5],  joy_in_0[4], joy_in_0[0], joy_in_0[1], joy_in_0[2], joy_in_0[3]} :
 						// strobe = high
-						 ((status[39:37] == 3'b100) && (strA == 1'b1)) ?
-						~{joystick_0[6], joystick_0[10], joystick_0[7], joystick_0[8], joystick_0[9], joystick_0[11]} :
+						 ((joy_mode_A == 3'b100) && (strA == 1'b1)) ?
+						~{joy_in_0[6], joy_in_0[10], joy_in_0[7], joy_in_0[8], joy_in_0[9], joy_in_0[11]} :
 
 						// Double-DPad - strobe = low
-						 ((status[39:37] == 3'b101) && (strA == 1'b0)) ?
-						~{joystick_0[6],  joystick_0[7], joystick_0[0], joystick_0[1], joystick_0[2], joystick_0[3]} :
+						 ((joy_mode_A == 3'b101) && (strA == 1'b0)) ?
+						~{joy_in_0[6],  joy_in_0[7], joy_in_0[0], joy_in_0[1], joy_in_0[2], joy_in_0[3]} :
 						// strobe = high
-						 ((status[39:37] == 3'b101) && (strA == 1'b1)) ?
-						~{joystick_0[6], joystick_0[7], joystick_0[4], joystick_0[9], joystick_0[5], joystick_0[8]} :
+						 ((joy_mode_A == 3'b101) && (strA == 1'b1)) ?
+						~{joy_in_0[6], joy_in_0[7], joy_in_0[4], joy_in_0[9], joy_in_0[5], joy_in_0[8]} :
 
 						6'b111111;
 
 wire        strB;
 wire        strB_tristate;
-wire  [5:0] joyB_USB = ((status[39:37] == 3'b000) || (status[38:36] == 3'b110)) ?		// default 2-button or CyberStick (only support 1 CyberStick)
-						~{joystick_1[5:4], (joystick_1[0]|joystick_1[6]), (joystick_1[1]|joystick_1[6]), (joystick_1[2]|joystick_1[7]), (joystick_1[3]|joystick_1[7])} :
+wire  [5:0] joyB_USB = ((joy_mode_B == 3'b000) || (joy_mode_B == 3'b110)) ?		// default 2-button or CyberStick (only support 1 CyberStick)
+						~{joy_in_1[5:4], (joy_in_1[0]|joy_in_1[6]), (joy_in_1[1]|joy_in_1[6]), (joy_in_1[2]|joy_in_1[7]), (joy_in_1[3]|joy_in_1[7])} :
 
 						// Turbo 2-button
-						 (status[39:37] == 3'b001) ?
-						~{joyrept_1[1:0], (joystick_1[0]|joystick_1[6]), (joystick_1[1]|joystick_1[6]), (joystick_1[2]|joystick_1[7]), (joystick_1[3]|joystick_1[7])} :
+						 (joy_mode_B == 3'b001) ?
+						~{joyrept_1[1:0], (joy_in_1[0]|joy_in_1[6]), (joy_in_1[1]|joy_in_1[6]), (joy_in_1[2]|joy_in_1[7]), (joy_in_1[3]|joy_in_1[7])} :
 
 						// MegaDrive 3-button - strobe = low
-						 ((status[39:37] == 3'b010) && (strB == 1'b0)) ?
-						~{joystick_1[6], joystick_1[4], 1'b1, 1'b1, joystick_1[2], joystick_1[3]} :
+						 ((joy_mode_B == 3'b010) && (strB == 1'b0)) ?
+						~{joy_in_1[6], joy_in_1[4], 1'b1, 1'b1, joy_in_1[2], joy_in_1[3]} :
 						// strobe - high
-						 ((status[39:37] == 3'b010) && (strB == 1'b1)) ?
-						~{joystick_1[9],  joystick_1[5], joystick_1[0], joystick_1[1], joystick_1[2], joystick_1[3]} :
+						 ((joy_mode_B == 3'b010) && (strB == 1'b1)) ?
+						~{joy_in_1[9],  joy_in_1[5], joy_in_1[0], joy_in_1[1], joy_in_1[2], joy_in_1[3]} :
 
 						// Magical 6-button - strobe = low
-						 ((status[39:37] == 3'b011) && (strA == 1'b0)) ?
-						~{joystick_1[9],  joystick_1[8], joystick_1[0], joystick_1[1], joystick_1[2], joystick_1[3]} :
+						 ((joy_mode_B == 3'b011) && (strA == 1'b0)) ?
+						~{joy_in_1[9],  joy_in_1[8], joy_in_1[0], joy_in_1[1], joy_in_1[2], joy_in_1[3]} :
 						// strobe = high
-						 ((status[39:37] == 3'b011) && (strA == 1'b1)) ?
-						~{joystick_1[5],  joystick_1[4], joystick_1[10],  joystick_1[11], 1'b1, 1'b1} :
+						 ((joy_mode_B == 3'b011) && (strA == 1'b1)) ?
+						~{joy_in_1[5],  joy_in_1[4], joy_in_1[10],  joy_in_1[11], 1'b1, 1'b1} :
 
 						// Capcom 6-button - strobe = low
-						((status[39:37] == 3'b100) && (strB == 1'b0)) ?
-						~{joystick_1[5],  joystick_1[4], joystick_1[0], joystick_1[1], joystick_1[2], joystick_1[3]} :
+						((joy_mode_B == 3'b100) && (strB == 1'b0)) ?
+						~{joy_in_1[5],  joy_in_1[4], joy_in_1[0], joy_in_1[1], joy_in_1[2], joy_in_1[3]} :
 						// strobe = high
-						((status[39:37] == 3'b100) && (strB == 1'b1)) ?
-						~{joystick_1[6], joystick_1[10], joystick_1[7], joystick_1[8], joystick_1[9], joystick_1[11]}:
+						((joy_mode_B == 3'b100) && (strB == 1'b1)) ?
+						~{joy_in_1[6], joy_in_1[10], joy_in_1[7], joy_in_1[8], joy_in_1[9], joy_in_1[11]}:
 
 						// Double-DPad - strobe = low
-						 ((status[39:37] == 3'b101) && (strB == 1'b0)) ?
-						~{joystick_1[6],  joystick_1[7], joystick_1[0], joystick_1[1], joystick_1[2], joystick_1[3]} :
+						 ((joy_mode_B == 3'b101) && (strB == 1'b0)) ?
+						~{joy_in_1[6],  joy_in_1[7], joy_in_1[0], joy_in_1[1], joy_in_1[2], joy_in_1[3]} :
 						// strobe = high
-						 ((status[39:37] == 3'b101) && (strB == 1'b1)) ?
-						~{joystick_1[6], joystick_1[7], joystick_1[4], joystick_1[9], joystick_1[5], joystick_1[8]} :
+						 ((joy_mode_B == 3'b101) && (strB == 1'b1)) ?
+						~{joy_in_1[6], joy_in_1[7], joy_in_1[4], joy_in_1[9], joy_in_1[5], joy_in_1[8]} :
 
 						6'b111111;
 // [MiSTer-DB9 END]
@@ -560,11 +599,11 @@ always @(posedge clk_sys) begin
 		scan_counter <= scan_counter + 1'd1;
 
 		// repeat counters
-		joyrept_0[0] <= (joystick_0[8] & scan_counter[2]) | (joystick_0[11] & scan_counter[1]) | joystick_0[4];
-		joyrept_0[1] <= (joystick_0[9] & scan_counter[2]) | (joystick_0[10] & scan_counter[1]) | joystick_0[5];
+		joyrept_0[0] <= (joy_in_0[8] & scan_counter[2]) | (joy_in_0[11] & scan_counter[1]) | joy_in_0[4];
+		joyrept_0[1] <= (joy_in_0[9] & scan_counter[2]) | (joy_in_0[10] & scan_counter[1]) | joy_in_0[5];
 
-		joyrept_1[0] <= (joystick_1[8] & scan_counter[2]) | (joystick_1[11] & scan_counter[1]) | joystick_1[4];
-		joyrept_1[1] <= (joystick_1[9] & scan_counter[2]) | (joystick_1[10] & scan_counter[1]) | joystick_1[5];
+		joyrept_1[0] <= (joy_in_1[8] & scan_counter[2]) | (joy_in_1[11] & scan_counter[1]) | joy_in_1[4];
+		joyrept_1[1] <= (joy_in_1[9] & scan_counter[2]) | (joy_in_1[10] & scan_counter[1]) | joy_in_1[5];
 
 	end
 end
@@ -581,7 +620,7 @@ XE1AP #(40) XE1AP		// for CyberStick - 40 clock cycles per microsecond (40MHz)
 	.reset(reset),
 	.clk_sys(clk_sys),
 
-   .joystick_0(joystick_0),
+   .joystick_0(joy_in_0),
    .joystick_l_analog_0(joy_analog_a),
    .joystick_r_analog_0(joy_analog_b),
 
@@ -720,6 +759,8 @@ wire [3:0] img_mounted_d;
 wire [1:0] fdd_eject_d;
 reg [23:0] mount_count[4];
 reg [15:0] fdd_eject_count[2];
+reg [3:0] disk_present = 0;      // Track which drives have a mounted disk
+reg [3:0] post_reset_mount = 0;  // 1-cycle remount pulse for XDF after reset
 assign fdd_eject_d[0] = |mount_count[0][23:16] || |fdd_eject_count[0];
 assign fdd_eject_d[1] = |mount_count[1][23:16] || |fdd_eject_count[1];
 assign img_mounted_d[0] = ~fdd_eject_d[0] && |mount_count[0];
@@ -734,22 +775,43 @@ always @(posedge clk_sys) begin : rst_block
 	reg old_rst = 0;
 	reg [3:0] old_im = 4'd0;
 	reg old_download;
+	reg old_reset;
 	reg [15:0] reset_delayed;
+	reg old_mem_sel;
+	reg old_midi_en;
 	
 	old_download <= ioctl_download;
+	old_reset <= reset;
 	old_im <= img_mounted;
 	if(~old_download & ioctl_download) reset_n <= 1;
+	
+	post_reset_mount <= 0;
 	
 	for (logic [2:0] x = 0; x < 3'd4; x=x+1'd1) begin
 		if (mount_count[x])
 			mount_count[x] <= mount_count[x] - 1'd1;
-		if (img_mounted[x])
+		if (img_mounted[x]) begin
 			mount_count[x] <= 24'hFFFFFF;
+			disk_present[x] <= |img_size;
 	end
-	if (fdeject[0])
+	end
+	
+	if (old_reset & ~reset) begin
+		for (logic [2:0] x = 0; x < 3'd4; x=x+1'd1) begin
+			if (disk_present[x])
+				mount_count[x] <= 24'h00FFFF;
+		end
+		post_reset_mount <= disk_present;
+	end
+	
+	if (fdeject[0]) begin
 		fdd_eject_count[0]<= 16'hFFFF;
-	if (fdeject[1])
+		disk_present[0] <= 0;
+	end
+	if (fdeject[1]) begin
 		fdd_eject_count[1]<= 16'hFFFF;
+		disk_present[1] <= 0;
+	end
 	if (fdd_eject_count[0])
 		fdd_eject_count[0] <= fdd_eject_count[0] - 1'd1;
 	if (fdd_eject_count[1])
@@ -762,6 +824,14 @@ always @(posedge clk_sys) begin : rst_block
 	if (~old_im[2] && img_mounted[2]) begin
 		reset_delayed <= 16'hFFFF;
 	end
+
+	old_mem_sel <= status[68];
+	if (old_mem_sel ^ status[68])
+		reset_delayed <= 16'hFFFF;
+
+	old_midi_en <= status[67];
+	if (old_midi_en ^ status[67])
+		reset_delayed <= 16'hFFFF;
 
 
 	old_rst <= status[0];
@@ -850,7 +920,10 @@ wire [1:0] fdsync = status[10:9];
 wire [1:0] fdeject = status[12:11];
 wire sramld	= status[13];
 wire sramst = status[14];
-wire [1:0] kbdtype = status[35:34];
+wire [2:0] kbdtype = status[36:34];
+wire [1:0] fddwait = status[48:47];
+wire [1:0] vid_mode = status[70:69];
+wire       e_ln4    = ~status[84];
 
 assign CLK_VIDEO = clk_vid;
 assign AUDIO_S = 1;
@@ -894,6 +967,39 @@ always @(posedge clk_sys) begin
 
 	snd_ce  <= snd_clockmode ? (div_snd2 == 9) : (div_snd == 4);
 end
+
+reg disk_mode_r = 0;
+reg [3:0] img_mounted_d1; 
+always @(posedge clk_sys) begin
+	img_mounted_d1 <= img_mounted;
+	if ((img_mounted[0] || img_mounted[1]) && |img_size)
+		disk_mode_r <= |ioctl_index[7:6];
+end
+
+wire disk_mode = disk_mode_r;
+
+ddram ddram_cpu_ram
+(
+	.clk(clk_sys),
+	.rst_n(reset_n & ~reset),
+	.addr(ddr_addr),
+	.din(ddr_din),
+	.rd(ddr_rd),
+	.wr(ddr_wr),
+	.dout(ddr_dout),
+	.ack(ddr_ack),
+	.ready(ddr_ready),
+	.DDRAM_CLK(DDRAM_CLK),
+	.DDRAM_BURSTCNT(DDRAM_BURSTCNT),
+	.DDRAM_ADDR(DDRAM_ADDR),
+	.DDRAM_DIN(DDRAM_DIN),
+	.DDRAM_BE(DDRAM_BE),
+	.DDRAM_RD(DDRAM_RD),
+	.DDRAM_WE(DDRAM_WE),
+	.DDRAM_DOUT(DDRAM_DOUT),
+	.DDRAM_DOUT_READY(DDRAM_DOUT_READY),
+	.DDRAM_BUSY(DDRAM_BUSY)
+);
 
 X68K_top X68K_top
 (
@@ -945,14 +1051,16 @@ X68K_top X68K_top
 	.pPmsDatin(ps2_mouse_data_out),
 	.pPmsDatout(ps2_mouse_data_in),
 
-	.mist_mounted(img_mounted_d),
+	.disk_mode(disk_mode),
+
+	.mist_mounted(img_mounted_d | post_reset_mount),
 	.mist_readonly(img_readonly),
 	.mist_imgsize(img_size),
 
 	.mist_lba(sd_lba),
 	.mist_rd(sd_rd),
 	.mist_wr(sd_wr),
-	.mist_ack({sd_ack[3:2], |sd_ack[1:0], |sd_ack[1:0]}),
+	.mist_ack(disk_mode ? sd_ack : {sd_ack[3:2], |sd_ack[1:0], |sd_ack[1:0]}),
 
 	.mist_buffaddr(sd_buff_addr),
 	.mist_buffdout(sd_buff_dout),
@@ -973,6 +1081,7 @@ X68K_top X68K_top
 	.pLed(disk_led),
 	.pDip(4'b0000),
 	.pPsw({~NMI,~POWER}),
+	.pfdwait(fddwait),
 	.pSramld(sramld),
 	.pSramst(sramst),
 
@@ -1001,8 +1110,25 @@ X68K_top X68K_top
 	.pSNDPCMR(pcm_r),
 
 	.rstn(reset_n & ~reset),
+	.vid_mode(vid_mode),
 	.dHMode(status[45:44]),
-	.dVMode(status[46])
+	.dVMode(status[46]),
+	.dLayers(status[57:53]),
+	.opm_sel(status[58]),
+	.dGrpLayers(status[62:59]),
+	.gclr_dis(status[65]),
+	.opm_mute(status[66]),
+	.pMidi_en(status[67]),
+	.use_ddr3(~status[68]),
+	.e_ln4(e_ln4),
+	.mix_fix(1'b1),
+	.ddr_addr(ddr_addr),
+	.ddr_din(ddr_din),
+	.ddr_dout(ddr_dout),
+	.ddr_rd(ddr_rd),
+	.ddr_wr(ddr_wr),
+	.ddr_ack(ddr_ack),
+	.ddr_ready(ddr_ready)
 );
 
 wire ldr_ack;
@@ -1054,8 +1180,6 @@ endfunction
 reg [15:0] cmp_l, cmp_r;
 
 always @(posedge CLK_AUDIO) begin
-	reg signed [17:0] tmp_l, tmp_r;
-
 	out_l <= aud_l + mt32_i2s_l;
 	out_r <= aud_r + mt32_i2s_r;
 	
@@ -1096,9 +1220,14 @@ always @(posedge CLK_VIDEO) begin
 end
 
 wire vga_de;
+wire freak_de;
+wire [7:0] vm_r, vm_g, vm_b;
+wire vm_hs, vm_vs;
+wire [21:0] vm_gamma_bus;
 video_freak video_freak
 (
 	.*,
+	.VGA_DE(freak_de),
 	.VGA_DE_IN(vga_de),
 	.ARX((!ar) ? 12'd4 : (ar - 1'd1)),
 	.ARY((!ar) ? 12'd3 : 12'd0),
@@ -1116,11 +1245,17 @@ wire [7:0] r_mt, g_mt, b_mt;
 assign {r_mt, g_mt, b_mt} = mt32_lcd ? {{2{mt32_lcd_pix}},red[7:2], {2{mt32_lcd_pix}},green[7:2], {2{mt32_lcd_pix}},blue[7:2]} 
 	: {red,green,blue};
 
-video_mixer #(.LINE_LENGTH(800), .HALF_DEPTH(0), .GAMMA(1)) video_mixer
+video_mixer #(.LINE_LENGTH(800), .HALF_DEPTH(0), .GAMMA(0)) video_mixer
 (
 	.*,
 
+	.gamma_bus(vm_gamma_bus),
 	.VGA_DE(vga_de),
+	.VGA_R(vm_r),
+	.VGA_G(vm_g),
+	.VGA_B(vm_b),
+	.VGA_HS(vm_hs),
+	.VGA_VS(vm_vs),
 	.hq2x(scale==1),
 	.HSync(HSync),
 	.HBlank(HBlank),
@@ -1133,6 +1268,24 @@ video_mixer #(.LINE_LENGTH(800), .HALF_DEPTH(0), .GAMMA(1)) video_mixer
 	.B(b_mt)
 );
 
+gamma_fast gamma_inst
+(
+	.clk_vid  (CLK_VIDEO),
+	.ce_pix   (CE_PIXEL),
+	.gamma_bus(gamma_bus),
+	.HSync    (vm_hs),
+	.VSync    (vm_vs),
+	.HBlank   (1'b0),
+	.VBlank   (1'b0),
+	.DE       (freak_de),
+	.RGB_in   ({vm_r, vm_g, vm_b}),
+	.HSync_out(VGA_HS),
+	.VSync_out(VGA_VS),
+	.HBlank_out(),
+	.VBlank_out(),
+	.DE_out   (VGA_DE),
+	.RGB_out  ({VGA_R, VGA_G, VGA_B})
+);
 
 endmodule
 
